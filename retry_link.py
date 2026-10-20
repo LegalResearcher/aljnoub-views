@@ -64,6 +64,9 @@ def main():
         log("⚠️ رد غير متوقع من السيرفر (ليس JSON).")
         return 1
 
+    if not isinstance(result, dict):
+        log("⚠️ رد غير متوقع من السيرفر (بنية JSON غير معروفة).")
+        return 1
     if "order" in result:
         log(f"✅ تم الطلب. رقم المعاملة: {result['order']}")
         mark_done(link)
