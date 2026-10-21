@@ -76,7 +76,7 @@ class BrowserSender:
 
     def _goto(self, url):
         try:
-            self.page.goto(url, wait_until="commit", timeout=90000)
+            self.page.goto(url, wait_until="commit", timeout=180000)
         except Exception as error:
             log(f"تأخر فتح الصفحة: {type(error).__name__}")
             self.page.wait_for_timeout(1000)
@@ -130,7 +130,7 @@ class BrowserSender:
     def _open_order_page(self):
         p = self.page
         self._goto(f"{SITE_URL}/?service={SERVICE_TEXT}")
-        for _ in range(120):
+        for _ in range(240):
             service_options = p.locator(
                 f"#orderform-service option[value='{SERVICE_TEXT}']"
             )
@@ -183,7 +183,7 @@ class BrowserSender:
                 return "fail"
 
             link_field = quantity_field = None
-            for _ in range(20):
+            for _ in range(240):
                 link_field = self._link_field()
                 quantity_field = self._quantity_field()
                 if link_field is not None and quantity_field is not None:
