@@ -14,6 +14,7 @@ SUCCESS_TEXT = "تم استلام طلبك بنجاح"
 SELECT_JS = """
 (needle) => {
   for (const s of Array.from(document.querySelectorAll('select'))) {
+    if (!(s.offsetWidth || s.offsetHeight || s.getClientRects().length)) continue;
     for (const o of s.options) {
       if (o.text.includes(needle)) {
         s.value = o.value;
@@ -88,7 +89,8 @@ class BrowserSender:
 
     def _login(self):
         p = self.page
-        p.goto(SITE_URL + "/", wait_until="domcontentloaded")
+        p.goto(SITE_URL + "/", wait_until="commit")
+        p.wait_for_timeout(1000)
         password_field = p.locator("input[type='password']").first
         try:
             password_field.wait_for(state="visible", timeout=20000)
@@ -108,7 +110,7 @@ class BrowserSender:
         if submit is None:
             raise RuntimeError("زر تسجيل الدخول غير موجود")
         submit.click()
-        p.wait_for_load_state("networkidle")
+        p.wait_for_timeout(1000)
         return not (
             p.locator("input[type='password']").count()
             and p.locator("input[type='password']").first.is_visible()
@@ -116,18 +118,21 @@ class BrowserSender:
 
     def _open_order_page(self):
         p = self.page
-        if self._link_field():
+        if self._link_field() or p.locator("select#orderform-category").count():
             return True
         for path in ("/neworder", "/new-order", "/"):
-            p.goto(SITE_URL + path, wait_until="domcontentloaded")
-            p.wait_for_load_state("networkidle")
-            if self._link_field():
+            p.goto(SITE_URL + path, wait_until="commit")
+            p.wait_for_timeout(1000)
+            if self._link_field() or p.locator("select#orderform-category").count():
                 return True
         button = p.get_by_text("طلب جديد", exact=True)
         if button.count():
-            button.first.click()
-            p.wait_for_load_state("networkidle")
-        return self._link_field() is not None
+            button.first.evaluate("(element) => element.click()")
+            p.wait_for_timeout(500)
+        return (
+            self._link_field() is not None
+            or p.locator("select#orderform-category").count() > 0
+        )
 
     def _select(self, needle, retries=10):
         for _ in range(retries):
@@ -153,8 +158,13 @@ class BrowserSender:
             if not self._select(SERVICE_TEXT):
                 return "fail"
 
-            link_field = self._link_field()
-            quantity_field = self._quantity_field()
+            link_field = quantity_field = None
+            for _ in range(20):
+                link_field = self._link_field()
+                quantity_field = self._quantity_field()
+                if link_field is not None and quantity_field is not None:
+                    break
+                p.wait_for_timeout(500)
             if link_field is None or quantity_field is None:
                 return "fail"
             link_field.fill(link)
