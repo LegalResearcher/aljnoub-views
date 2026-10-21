@@ -1,8 +1,6 @@
 name: Aljnoub Views
 
 on:
-  schedule:
-    - cron: "*/25 * * * *"
   workflow_dispatch:
 
 permissions:

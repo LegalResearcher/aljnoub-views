@@ -1,13 +1,14 @@
 # Aljnoub Views
 
 يسحب منشورات قناة `@aljnoubvoice` ويرسل طلب مشاهدات لرابط واحد من الطابور في كل تشغيل.
-التشغيل كل 25 دقيقة عبر GitHub Actions.
+التشغيل كل 25 دقيقة عبر Supabase `pg_cron`، الذي يرسل `workflow_dispatch` إلى GitHub Actions.
 
 ## الإعداد
 1. أضف المفتاح: Settings > Secrets and variables > Actions > New repository secret
    - الاسم: `API_KEY`
    - القيمة: مفتاح الـ API
-2. تشغيل يدوي: تبويب Actions > Aljnoub Views > Run workflow.
+2. في Supabase Vault أضف سر GitHub باسم `github_actions_token`، ويجب أن يملك صلاحية تشغيل Actions للمستودع.
+3. تشغيل يدوي: تبويب Actions > Aljnoub Views > Run workflow.
 
 ## كيف يعمل
 - أول تشغيل: يأخذ أحدث منشور فقط.
