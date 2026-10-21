@@ -11,6 +11,10 @@ CONFIRM_TEXT = "تاكيد الطلب"
 SUCCESS_TEXT = "تم استلام طلبك بنجاح"
 
 
+def log(message):
+    print(f"[browser] {message}", flush=True)
+
+
 SELECT_JS = """
 (needle) => {
   for (const s of Array.from(document.querySelectorAll('select'))) {
@@ -119,13 +123,14 @@ class BrowserSender:
     def _open_order_page(self):
         p = self.page
         p.goto(f"{SITE_URL}/?service={SERVICE_TEXT}", wait_until="commit")
-        for _ in range(60):
+        for _ in range(120):
             service_options = p.locator(
                 f"#orderform-service option[value='{SERVICE_TEXT}']"
             )
             if self._link_field() and service_options.count():
                 return True
             p.wait_for_timeout(500)
+        log("انتهت مهلة تحميل صفحة الخدمة والحقول")
         if self._link_field() or p.locator("select#orderform-category").count():
             return True
         for path in ("/neworder", "/new-order", "/"):
@@ -155,15 +160,19 @@ class BrowserSender:
         try:
             if not self.logged_in:
                 if not self._login():
+                    log("فشل تسجيل الدخول")
                     return "fatal"
                 self.logged_in = True
 
             if not self._open_order_page():
+                log("لم تُفتح صفحة الطلب")
                 return "fail"
             if not self._select(CATEGORY_TEXT):
+                log("لم يتم اختيار القسم")
                 return "fail"
             p.wait_for_timeout(800)
             if not self._select(SERVICE_TEXT):
+                log(f"لم يتم اختيار الخدمة {SERVICE_TEXT}")
                 return "fail"
 
             link_field = quantity_field = None
@@ -174,6 +183,7 @@ class BrowserSender:
                     break
                 p.wait_for_timeout(500)
             if link_field is None or quantity_field is None:
+                log("حقلا الرابط والكمية غير متاحين")
                 return "fail"
             link_field.fill(link)
             quantity_field.fill(QUANTITY)
@@ -184,20 +194,42 @@ class BrowserSender:
                 p.locator(f"input[type='submit'][value*='{CONFIRM_TEXT}']"),
             )
             if confirm is None:
+                log("زر التأكيد غير متاح")
                 return "fail"
 
             # الزر مثبت أسفل الصفحة وقد تتداخل معه عناصر عائمة؛ النقر البرمجي يتجاوز التداخل.
             confirm.evaluate("(element) => element.click()")
             try:
                 p.wait_for_function(
-                    "(text) => document.body.innerText.includes(text)",
+                    """(text) => {
+                        const body = document.body.innerText || '';
+                        return body.includes(text)
+                          || body.includes('تم الطلب')
+                          || body.includes('رقم الطلب')
+                          || !!document.querySelector('.alert-success');
+                    }""",
                     arg=SUCCESS_TEXT,
                     timeout=30000,
                 )
             except Exception:
+                alerts = p.locator(".alert, [role='alert']")
+                message = ""
+                if alerts.count():
+                    message = alerts.first.inner_text().strip().replace("\n", " ")[:240]
+                log(f"لم تظهر نتيجة نجاح بعد التأكيد: {message or 'لا توجد رسالة'}")
                 return "fail"
 
-            p.goto(SITE_URL + "/", wait_until="domcontentloaded")
+            body = p.inner_text("body")
+            order_match = re.search(r"الرقم\s*:?[\s]*(\d+)|(\d+)\s*:?[\s]*الرقم", body)
+            if order_match:
+                log(f"تم إنشاء الطلب، الرقم: {order_match.group(1) or order_match.group(2)}")
+            else:
+                log("تم إنشاء الطلب بنجاح")
+            try:
+                p.goto(SITE_URL + "/", wait_until="commit", timeout=10000)
+            except Exception:
+                pass
             return "ok"
-        except Exception:
+        except Exception as error:
+            log(f"استثناء أثناء الطلب: {type(error).__name__}")
             return "fail"
