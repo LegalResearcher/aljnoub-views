@@ -118,6 +118,10 @@ class BrowserSender:
 
     def _open_order_page(self):
         p = self.page
+        p.goto(f"{SITE_URL}/?service={SERVICE_TEXT}", wait_until="commit")
+        p.wait_for_timeout(1000)
+        if self._link_field():
+            return True
         if self._link_field() or p.locator("select#orderform-category").count():
             return True
         for path in ("/neworder", "/new-order", "/"):
