@@ -120,7 +120,7 @@ class BrowserSender:
         )
         if submit is None:
             raise RuntimeError("زر تسجيل الدخول غير موجود")
-        submit.click()
+        submit.evaluate("(element) => element.click()")
         p.wait_for_timeout(1000)
         return not (
             p.locator("input[type='password']").count()
@@ -238,5 +238,5 @@ class BrowserSender:
                 pass
             return "ok"
         except Exception as error:
-            log(f"استثناء أثناء الطلب: {type(error).__name__}")
+            log(f"استثناء أثناء الطلب: {type(error).__name__}: {str(error)[:160]}")
             return "fail"
