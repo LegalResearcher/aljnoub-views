@@ -74,6 +74,13 @@ class BrowserSender:
                 continue
         return None
 
+    def _goto(self, url):
+        try:
+            self.page.goto(url, wait_until="commit", timeout=90000)
+        except Exception as error:
+            log(f"تأخر فتح الصفحة: {type(error).__name__}")
+            self.page.wait_for_timeout(1000)
+
     def _link_field(self):
         p = self.page
         return self._first_visible(
@@ -93,7 +100,7 @@ class BrowserSender:
 
     def _login(self):
         p = self.page
-        p.goto(SITE_URL + "/", wait_until="commit")
+        self._goto(SITE_URL + "/")
         p.wait_for_timeout(1000)
         password_field = p.locator("input[type='password']").first
         try:
@@ -122,7 +129,7 @@ class BrowserSender:
 
     def _open_order_page(self):
         p = self.page
-        p.goto(f"{SITE_URL}/?service={SERVICE_TEXT}", wait_until="commit")
+        self._goto(f"{SITE_URL}/?service={SERVICE_TEXT}")
         for _ in range(120):
             service_options = p.locator(
                 f"#orderform-service option[value='{SERVICE_TEXT}']"
@@ -134,7 +141,7 @@ class BrowserSender:
         if self._link_field() or p.locator("select#orderform-category").count():
             return True
         for path in ("/neworder", "/new-order", "/"):
-            p.goto(SITE_URL + path, wait_until="commit")
+            self._goto(SITE_URL + path)
             p.wait_for_timeout(1000)
             if self._link_field() or p.locator("select#orderform-category").count():
                 return True
