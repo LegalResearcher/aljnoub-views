@@ -26,11 +26,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install existing dependency
-        run: pip install requests
+      - name: Install browser dependency
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
       - name: Retry selected link
         env:
-          API_KEY: ${{ secrets.API_KEY }}
+          SITE_USERNAME: ${{ secrets.SITE_USERNAME }}
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           TARGET_LINK: ${{ inputs.link }}
         run: python retry_link.py
       - name: Commit state
