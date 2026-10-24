@@ -5,6 +5,11 @@ import sys
 import time
 
 import requests
+from state_store import (
+    MAX_SUCCESSFUL_ORDERS_PER_LINK,
+    load_success_counts,
+    record_success,
+)
 
 # ══════════════ الإعدادات ══════════════
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +20,7 @@ LINKS_PATH = os.path.join(STATE_DIR, "telegram_links.txt")        # طابور �
 PROCESSED_PATH = os.path.join(STATE_DIR, "processed_links.txt")   # روابط تم سحبها
 DONE_PATH = os.path.join(STATE_DIR, "done_links.txt")             # روابط تم تنفيذها
 ATTEMPTS_PATH = os.path.join(STATE_DIR, "failed_attempts.json")   # عدّاد الفشل لكل رابط
+SUCCESS_COUNTS_PATH = os.path.join(STATE_DIR, "success_counts.json")
 
 TARGET_CHANNEL = "aljnoubvoice"
 
@@ -104,11 +110,10 @@ def pull_once():
     log(f"✨ أُضيف {len(new_links)} رابط جديد إلى الطابور.")
 
 
-def pending_links(attempts):
-    done = set(read_lines(DONE_PATH))
+def pending_links(attempts, success_counts):
     result = []
     for link in read_lines(LINKS_PATH):
-        if link in done:
+        if success_counts.get(link, 0) >= MAX_SUCCESSFUL_ORDERS_PER_LINK:
             continue
         if attempts.get(link, 0) >= MAX_ATTEMPTS_PER_LINK:
             continue
@@ -119,7 +124,8 @@ def pending_links(attempts):
 
 def run_browser_send(sender):
     attempts = load_attempts()
-    queue = pending_links(attempts)
+    success_counts = load_success_counts(SUCCESS_COUNTS_PATH, DONE_PATH)
+    queue = pending_links(attempts, success_counts)
     if not queue:
         log("💤 الطابور فارغ، لا شيء للتنفيذ.")
         return 0
@@ -135,9 +141,9 @@ def run_browser_send(sender):
         status = sender(link)
 
         if status == "ok":
-            append_lines(DONE_PATH, [link])
+            success_count = record_success(link, SUCCESS_COUNTS_PATH, DONE_PATH)
             successes += 1
-            log(f"✅ نجاح {successes}/{MAX_SUCCESSFUL_LINKS_PER_RUN}.")
+            log(f"✅ نجاح الرابط {success_count}/{MAX_SUCCESSFUL_ORDERS_PER_LINK} | التشغيل {successes}/{MAX_SUCCESSFUL_LINKS_PER_RUN}.")
             continue
         if status == "fatal":
             log("⏹️ توقف: تحقق من بيانات الدخول أو الرصيد.")
