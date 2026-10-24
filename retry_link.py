@@ -7,6 +7,7 @@ from state_store import (
     MAX_SUCCESSFUL_ORDERS_PER_LINK,
     load_success_counts,
     record_success,
+    select_rotating_account,
 )
 
 LINK_PATTERN = re.compile(r"^https://t\.me/aljnoubvoice/\d+$")
@@ -20,12 +21,7 @@ def log(message):
 
 
 def main():
-    username = os.environ.get("SITE_USERNAME", "").strip()
-    password = os.environ.get("SITE_PASSWORD", "")
     link = os.environ.get("TARGET_LINK", "").strip()
-    if not (username and password):
-        log("❌ أضف SITE_USERNAME وSITE_PASSWORD في Secrets and variables > Actions.")
-        return 1
     if not LINK_PATTERN.fullmatch(link):
         log("❌ الرابط غير صالح؛ يلزم رابط منشور من قناة aljnoubvoice.")
         return 2
@@ -36,7 +32,13 @@ def main():
         log(f"⏹️ وصل الرابط إلى الحد الأقصى: {current_count}/{MAX_SUCCESSFUL_ORDERS_PER_LINK} طلبات ناجحة.")
         return 3
 
-    log(f"🚀 إعادة تشغيل يدوية للرابط المحدد: {link}")
+    try:
+        account_number, username, password = select_rotating_account(os.environ, STATE_DIR)
+    except (OSError, ValueError) as error:
+        log(f"❌ تعذر اختيار حساب؛ تحقق من الأسرار الثلاثة وحالة account_rotation.json: {error}")
+        return 1
+
+    log(f"🚀 إعادة تشغيل يدوية للرابط المحدد: {link} | الحساب رقم {account_number}")
     with BrowserSender(username, password) as sender:
         status = sender(link)
 
