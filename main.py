@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import random
 import sys
 import time
 
@@ -129,6 +130,10 @@ def run_browser_send(sender, state_dir=STATE_DIR):
     for link in queue:
         if tries >= MAX_TRIES_PER_RUN:
             break
+        if tries > 0:
+            delay = random.uniform(40, 150)
+            log(f"انتظار {delay:.1f} ثانية قبل الطلب التالي.")
+            time.sleep(delay)
         tries += 1
         log(f"معالجة ({successes.get(link, 0)}/{MAX_SUCCESSES_PER_LINK} نجاح): {link}")
         status = sender(link)
