@@ -3,6 +3,8 @@ run-name: Aljnoub Views standalone (${{ github.run_id }})
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
