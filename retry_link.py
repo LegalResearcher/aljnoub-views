@@ -9,6 +9,7 @@ from processing_state import (
     can_process,
     load_failures,
     load_successes,
+    pause_automation,
     record_result,
 )
 
@@ -32,6 +33,7 @@ def process_manual_retry(link, sender, state_dir=STATE_DIR):
 
     status = sender(link)
     if status == "fatal":
+        pause_automation(state_dir, "fatal account/login failure")
         log("⏹️ توقف: تحقق من بيانات الدخول أو الرصيد.")
         return 1
     _, result = record_result(link, status, state_dir, successes, failures)

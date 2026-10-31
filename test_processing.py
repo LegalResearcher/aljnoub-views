@@ -10,7 +10,7 @@ from main import (
     prepare_run_batch,
     run_browser_send,
 )
-from processing_state import load_account_history
+from processing_state import is_automation_paused, load_account_history
 
 
 class FakeSender:
@@ -97,6 +97,7 @@ class ProcessingTests(unittest.TestCase):
         self.assertEqual(run_browser_send(sender, self.state, 5, [self.links[0]]), 1)
         self.assertEqual(pending_links([self.links[0]], 5, self.state), [])
         self.assertEqual(pending_links([self.links[0]], 1, self.state), [self.links[0]])
+        self.assertTrue(is_automation_paused(self.state))
 
 
 if __name__ == "__main__":
