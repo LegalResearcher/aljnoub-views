@@ -74,6 +74,17 @@ class ProcessingTests(unittest.TestCase):
         self.assertEqual(pending_links([self.links[0]], 3, self.state), [])
         self.assertEqual(pending_links([self.links[0]], 4, self.state), [self.links[0]])
 
+    def test_scheduled_run_skips_links_at_success_or_failure_limit(self):
+        with open(os.path.join(self.state, "success_counts.json"), "w", encoding="utf-8") as file:
+            json.dump({self.links[0]: 9}, file)
+        with open(os.path.join(self.state, "failed_attempts.json"), "w", encoding="utf-8") as file:
+            json.dump({self.links[1]: 3}, file)
+
+        sender = FakeSender()
+        run_browser_send(sender, self.state, 1, self.links[:3])
+
+        self.assertEqual(sender.calls, [self.links[2]])
+
     def test_run_is_limited_to_nine_requests_and_remaining_links_stay_in_batch(self):
         batch = [f"https://t.me/aljnoubvoice/{number}" for number in range(1, 12)]
         sender = FakeSender()

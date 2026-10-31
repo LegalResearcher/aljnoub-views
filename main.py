@@ -12,6 +12,7 @@ from processing_state import (
     load_failures,
     load_successes,
     mark_account_handled,
+    record_result,
 )
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -110,8 +111,11 @@ def prepare_run_batch(new_links, state_dir=STATE_DIR):
 
 def pending_links(links, account_number, state_dir=STATE_DIR):
     history = load_account_history(state_dir)
+    successes = load_successes(state_dir)
+    failures = load_failures(state_dir)
     return [link for link in dict.fromkeys(links)
-            if account_number not in history.get(link, [])]
+            if account_number not in history.get(link, [])
+            and can_process(link, state_dir, successes, failures)]
 
 
 def run_browser_send(sender, state_dir=STATE_DIR, account_number=1, links=None):
@@ -138,9 +142,12 @@ def run_browser_send(sender, state_dir=STATE_DIR, account_number=1, links=None):
             log("⏹️ توقف: تعذر إكمال المعالجة بسبب حالة الحساب أو الرصيد.")
             return 1
         tries += 1
-        if status == "ok":
+        _, result = record_result(link, status, state_dir)
+        if result == "success":
             log(f"✅ نجحت معالجة الرابط على الحساب {account_number}.")
         else:
+            if result == "failure_limit":
+                log("🚫 تم تخطي الرابط بعد ثلاث محاولات فاشلة.")
             log(f"⚠️ فشلت محاولة الرابط على الحساب {account_number}؛ سيُترك للحسابات التالية.")
     log(f"انتهى التشغيل بعد {tries} طلبات.")
     return 0
