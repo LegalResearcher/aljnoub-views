@@ -44,6 +44,12 @@ jobs:
         run: |
           git fetch origin main
           git reset --hard FETCH_HEAD
+      - name: Stop if automation is paused
+        run: |
+          if [ -f state/automation_paused ]; then
+            echo "Automation is paused; manual re-enable is required."
+            exit 1
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
