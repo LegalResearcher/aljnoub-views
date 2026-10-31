@@ -159,7 +159,7 @@ def main():
     try:
         account_number, username, password = select_rotating_account(os.environ, STATE_DIR)
     except (OSError, ValueError) as error:
-        log(f"❌ تعذر اختيار حساب؛ تحقق من الأسرار الخمسة وحالة account_rotation.json: {error}")
+        log(f"❌ تعذر اختيار حساب؛ تحقق من الأسرار التسعة وحالة account_rotation.json: {error}")
         return 1
     log(f"🚀 بدء التشغيل | القناة: @{TARGET_CHANNEL} | الحساب رقم {account_number}")
     from browser_sender import BrowserSender
