@@ -182,18 +182,21 @@
   ],
   "https://t.me/aljnoubvoice/8922": [
     4,
+    5,
     6,
     7,
     8
   ],
   "https://t.me/aljnoubvoice/8923": [
     4,
+    5,
     6,
     7,
     8
   ],
   "https://t.me/aljnoubvoice/8924": [
-    4
+    4,
+    5
   ],
   "https://t.me/aljnoubvoice/8925": [
     4
@@ -225,6 +228,7 @@
     2,
     3,
     4,
+    5,
     6,
     7,
     8,
@@ -235,6 +239,7 @@
     2,
     3,
     4,
+    5,
     6,
     7,
     8,
@@ -245,6 +250,7 @@
     2,
     3,
     4,
+    5,
     9
   ],
   "https://t.me/aljnoubvoice/8934": [
@@ -252,6 +258,7 @@
     2,
     3,
     4,
+    5,
     9
   ],
   "https://t.me/aljnoubvoice/8935": [
@@ -259,6 +266,10 @@
     2,
     3,
     4,
+    5,
     9
+  ],
+  "https://t.me/aljnoubvoice/8940": [
+    5
   ]
 }
