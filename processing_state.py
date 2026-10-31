@@ -5,7 +5,7 @@ import tempfile
 
 from account_rotation import ACCOUNT_COUNT
 
-MAX_SUCCESSES_PER_LINK = 5
+MAX_SUCCESSES_PER_LINK = 9
 MAX_FAILURES_PER_LINK = 3
 
 
