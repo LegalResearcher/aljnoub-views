@@ -1,4 +1,5 @@
 import json
+import main as main_module
 import os
 import tempfile
 import unittest
@@ -43,7 +44,7 @@ class ProcessingTests(unittest.TestCase):
         self.assertEqual(batch, [self.links[2], self.links[0], self.links[1]])
         self.assertEqual(load_previous_batch(self.state), batch)
 
-    def test_legacy_queue_migration_only_keeps_first_nine_incomplete_links(self):
+    def test_legacy_queue_migration_keeps_all_incomplete_links(self):
         with open(os.path.join(self.state, "telegram_links.txt"), "w", encoding="utf-8") as file:
             file.write("\n".join(self.links) + "\n")
         with open(os.path.join(self.state, "success_counts.json"), "w", encoding="utf-8") as file:
@@ -86,12 +87,53 @@ class ProcessingTests(unittest.TestCase):
 
         self.assertEqual(sender.calls, [self.links[2]])
 
-    def test_run_is_limited_to_nine_requests_and_remaining_links_stay_in_batch(self):
+    def test_run_processes_all_eligible_links_without_a_nine_request_cap(self):
         batch = [f"https://t.me/aljnoubvoice/{number}" for number in range(1, 12)]
         sender = FakeSender()
         run_browser_send(sender, self.state, 1, batch)
-        self.assertEqual(sender.calls, batch[:9])
-        self.assertEqual(pending_links(batch, 1, self.state), batch[9:])
+        self.assertEqual(sender.calls, batch)
+        self.assertEqual(pending_links(batch, 1, self.state), [])
+
+    def test_main_selects_next_account_with_eligible_links(self):
+        with open(os.path.join(self.state, "account_rotation.json"), "w", encoding="utf-8") as file:
+            json.dump({"next_account": 1}, file)
+        with patch.object(main_module, "STATE_DIR", self.state), \
+             patch.object(main_module, "discover_new_links", return_value=[]), \
+             patch.object(main_module, "prepare_run_batch", return_value=self.links[:2]), \
+             patch.object(main_module, "pending_links", side_effect=lambda links, account, state: [links[0]] if account == 2 else []), \
+             patch.object(main_module, "select_rotating_account", return_value=(2, "user", "pass")) as select_account, \
+             patch("browser_sender.BrowserSender") as browser_sender, \
+             patch.object(main_module, "run_browser_send", return_value=0):
+            browser_sender.return_value.__enter__.return_value = object()
+            self.assertEqual(main_module.main(), 0)
+            select_account.assert_called_once_with(os.environ, self.state, selected_account=2)
+
+    def test_prepare_batch_prunes_completed_and_failure_limited_links(self):
+        with open(os.path.join(self.state, "success_counts.json"), "w", encoding="utf-8") as file:
+            json.dump({self.links[0]: 9}, file)
+        with open(os.path.join(self.state, "failed_attempts.json"), "w", encoding="utf-8") as file:
+            json.dump({self.links[1]: 3}, file)
+        batch = prepare_run_batch(self.links[:3], self.state)
+        self.assertEqual(batch, [self.links[2]])
+        self.assertEqual(load_previous_batch(self.state), [self.links[2]])
+
+    def test_finished_link_is_removed_from_saved_batch_after_target_success(self):
+        with open(os.path.join(self.state, "success_counts.json"), "w", encoding="utf-8") as file:
+            json.dump({self.links[0]: 8}, file)
+        save_previous = main_module.save_previous_batch
+        save_previous([self.links[0]], self.state)
+        sender = FakeSender()
+        self.assertEqual(run_browser_send(sender, self.state, 1, [self.links[0]]), 0)
+        self.assertEqual(load_previous_batch(self.state), [])
+
+    def test_main_does_not_select_account_or_open_browser_when_no_account_has_work(self):
+        with patch.object(main_module, "STATE_DIR", self.state), \
+             patch.object(main_module, "discover_new_links", return_value=[]), \
+             patch.object(main_module, "prepare_run_batch", return_value=self.links[:2]), \
+             patch.object(main_module, "pending_links", return_value=[]), \
+             patch.object(main_module, "select_rotating_account") as select_account:
+            self.assertEqual(main_module.main(), 0)
+            select_account.assert_not_called()
 
     def test_manual_retry_does_not_send_when_automation_is_paused(self):
         pause_automation(self.state, "test pause")

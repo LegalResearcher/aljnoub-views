@@ -5,7 +5,7 @@ import re
 import sys
 import time
 import requests
-from account_rotation import select_rotating_account
+from account_rotation import ACCOUNT_COUNT, select_rotating_account
 from processing_state import (
     can_process,
     load_account_history,
@@ -22,7 +22,6 @@ STATE_DIR = os.path.join(ROOT, "state")
 os.makedirs(STATE_DIR, exist_ok=True)
 PROCESSED_PATH = os.path.join(STATE_DIR, "processed_links.txt")
 TARGET_CHANNEL = "aljnoubvoice"
-MAX_TRIES_PER_RUN = 9
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
                   "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
@@ -52,13 +51,13 @@ def append_lines(path, lines):
 def load_previous_batch(state_dir=STATE_DIR):
     path = os.path.join(state_dir, "previous_batch.json")
     if not os.path.exists(path):
-        # ترحيل لمرة واحدة: فقط أول دفعة كانت مؤهلة في النظام السابق.
+        # ترحيل لمرة واحدة: جميع الروابط المؤهلة من النظام السابق.
         legacy_links = list(dict.fromkeys(read_lines(os.path.join(state_dir, "telegram_links.txt"))))
         successes = load_successes(state_dir)
         failures = load_failures(state_dir)
         eligible = [link for link in legacy_links
                     if can_process(link, state_dir, successes, failures)]
-        return eligible[:MAX_TRIES_PER_RUN]
+        return eligible
     try:
         with open(path, "r", encoding="utf-8") as file:
             value = json.load(file)
@@ -106,7 +105,11 @@ def discover_new_links(state_dir=STATE_DIR, discovered=None):
 def prepare_run_batch(new_links, state_dir=STATE_DIR):
     """الجديد أولاً ثم دفعة التشغيل السابق، مع إزالة التكرار."""
     previous = load_previous_batch(state_dir)
-    batch = list(dict.fromkeys(list(new_links) + previous))
+    candidates = list(dict.fromkeys(list(new_links) + previous))
+    successes = load_successes(state_dir)
+    failures = load_failures(state_dir)
+    batch = [link for link in candidates
+             if can_process(link, state_dir, successes, failures)]
     save_previous_batch(batch, state_dir)
     return batch
 
@@ -127,11 +130,9 @@ def run_browser_send(sender, state_dir=STATE_DIR, account_number=1, links=None):
     if not queue:
         log(f"💤 لا روابط متاحة للحساب {account_number} ضمن الدفعة الحالية.")
         return 0
-    log(f"📋 روابط مؤهلة للحساب {account_number}: {len(queue)}؛ حد التشغيل {MAX_TRIES_PER_RUN} طلبات.")
+    log(f"📋 روابط مؤهلة للحساب {account_number}: {len(queue)}؛ ستُعالج الدفعة المؤهلة كاملة في هذا التشغيل.")
     tries = 0
     for link in queue:
-        if tries >= MAX_TRIES_PER_RUN:
-            break
         if tries > 0:
             delay = random.uniform(40, 150)
             log(f"انتظار {delay:.1f} ثانية قبل الطلب التالي.")
@@ -152,7 +153,12 @@ def run_browser_send(sender, state_dir=STATE_DIR, account_number=1, links=None):
             if result == "failure_limit":
                 log("🚫 تم تخطي الرابط بعد ثلاث محاولات فاشلة.")
             log(f"⚠️ فشلت محاولة الرابط على الحساب {account_number}؛ سيُترك للحسابات التالية.")
-    log(f"انتهى التشغيل بعد {tries} طلبات.")
+    successes = load_successes(state_dir)
+    failures = load_failures(state_dir)
+    remaining = [link for link in batch
+                 if can_process(link, state_dir, successes, failures)]
+    save_previous_batch(remaining, state_dir)
+    log(f"انتهى التشغيل بعد {tries} طلبات؛ روابط الدفعة المتبقية للحسابات التالية: {len(remaining)}.")
     return 0
 
 
@@ -169,8 +175,34 @@ def main():
     if not batch:
         log("💤 لا توجد روابط جديدة أو في الدفعة السابقة.")
         return 0
+    cursor_path = os.path.join(STATE_DIR, "account_rotation.json")
+    next_account = 1
+    if os.path.exists(cursor_path):
+        try:
+            with open(cursor_path, "r", encoding="utf-8") as file:
+                cursor = json.load(file)
+            if not isinstance(cursor, dict):
+                raise ValueError("account_rotation.json must contain an object")
+            next_account = cursor.get("next_account", 1)
+            if (not isinstance(next_account, int) or isinstance(next_account, bool)
+                    or not 1 <= next_account <= ACCOUNT_COUNT):
+                raise ValueError("Invalid next_account in account_rotation.json")
+        except (OSError, ValueError) as error:
+            log(f"❌ تعذر قراءة مؤشر الحساب account_rotation.json: {error}")
+            return 1
+    eligible_accounts = [
+        ((next_account + offset - 1) % ACCOUNT_COUNT) + 1
+        for offset in range(ACCOUNT_COUNT)
+        if pending_links(batch, ((next_account + offset - 1) % ACCOUNT_COUNT) + 1, STATE_DIR)
+    ]
+    if not eligible_accounts:
+        log("💤 لا توجد روابط مؤهلة لأي حساب؛ لن يتم فتح المتصفح أو تسجيل الدخول.")
+        return 0
+    selected_account = eligible_accounts[0]
     try:
-        account_number, username, password = select_rotating_account(os.environ, STATE_DIR)
+        account_number, username, password = select_rotating_account(
+            os.environ, STATE_DIR, selected_account=selected_account
+        )
     except (OSError, ValueError) as error:
         log(f"❌ تعذر اختيار حساب؛ تحقق من الأسرار التسعة وحالة account_rotation.json: {error}")
         return 1
