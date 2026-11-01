@@ -8,6 +8,15 @@ from account_rotation import ACCOUNT_COUNT
 MAX_SUCCESSES_PER_LINK = 9
 MAX_FAILURES_PER_LINK = 3
 AUTOMATION_PAUSED_FILE = "automation_paused"
+FATAL_PAUSE_RESET_FILES = (
+    "account_rotation.json",
+    "failed_attempts.json",
+    "link_account_history.json",
+    "previous_batch.json",
+    "processed_links.txt",
+    "success_counts.json",
+    "telegram_links.txt",
+)
 
 
 def _path(state_dir, filename):
@@ -24,6 +33,10 @@ def pause_automation(state_dir, reason="fatal account or login failure"):
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as file:
             file.write(reason + "\n")
+    for filename in FATAL_PAUSE_RESET_FILES:
+        reset_path = _path(state_dir, filename)
+        if os.path.isfile(reset_path):
+            os.remove(reset_path)
 
 
 def read_lines(path):

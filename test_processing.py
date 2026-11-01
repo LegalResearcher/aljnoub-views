@@ -11,7 +11,12 @@ from main import (
     prepare_run_batch,
     run_browser_send,
 )
-from processing_state import is_automation_paused, load_account_history, pause_automation
+from processing_state import (
+    FATAL_PAUSE_RESET_FILES,
+    is_automation_paused,
+    load_account_history,
+    pause_automation,
+)
 from retry_link import process_manual_retry
 
 
@@ -147,12 +152,39 @@ class ProcessingTests(unittest.TestCase):
         self.assertEqual(sender.calls, [self.links[0]])
         self.assertFalse(is_automation_paused(self.state))
 
+    def test_normal_link_failure_does_not_clear_processing_state(self):
+        targets = list(FATAL_PAUSE_RESET_FILES) + [".gitkeep"]
+        for filename in targets:
+            with open(os.path.join(self.state, filename), "w", encoding="utf-8") as file:
+                file.write("keep me")
+        sender = FakeSender(["fail"])
+
+        self.assertEqual(process_manual_retry(self.links[0], sender, self.state), 1)
+
+        self.assertFalse(is_automation_paused(self.state))
+        for filename in targets:
+            self.assertTrue(os.path.exists(os.path.join(self.state, filename)), filename)
+
+    def test_fatal_pause_clears_processing_files_but_preserves_pause_marker_and_gitkeep(self):
+        targets = list(FATAL_PAUSE_RESET_FILES)
+        for filename in targets + [".gitkeep"]:
+            with open(os.path.join(self.state, filename), "w", encoding="utf-8") as file:
+                file.write("keep me")
+        sender = FakeSender(["fatal"])
+
+        self.assertEqual(process_manual_retry(self.links[0], sender, self.state), 1)
+
+        self.assertTrue(is_automation_paused(self.state))
+        self.assertTrue(os.path.exists(os.path.join(self.state, "automation_paused")))
+        self.assertTrue(os.path.exists(os.path.join(self.state, ".gitkeep")))
+        for filename in targets:
+            self.assertFalse(os.path.exists(os.path.join(self.state, filename)), filename)
+
     def test_fatal_result_does_not_retry_link_on_same_account(self):
         sender = FakeSender(["fatal"])
         self.assertEqual(run_browser_send(sender, self.state, 5, [self.links[0]]), 1)
-        self.assertEqual(pending_links([self.links[0]], 5, self.state), [])
-        self.assertEqual(pending_links([self.links[0]], 1, self.state), [self.links[0]])
         self.assertTrue(is_automation_paused(self.state))
+        self.assertEqual(load_account_history(self.state), {})
 
 
 if __name__ == "__main__":
