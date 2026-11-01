@@ -6,11 +6,9 @@ from account_rotation import select_rotating_account
 from browser_sender import BrowserSender
 from processing_state import (
     MAX_SUCCESSES_PER_LINK,
-    is_automation_paused,
     can_process,
     load_failures,
     load_successes,
-    pause_automation,
     record_result,
 )
 
@@ -23,9 +21,6 @@ def log(message):
 
 
 def process_manual_retry(link, sender, state_dir=STATE_DIR):
-    if is_automation_paused(state_dir):
-        log("⏸️ الجدولة متوقفة مؤقتًا؛ لن تتم إعادة المحاولة حتى إزالة علامة الإيقاف يدويًا.")
-        return 1
     successes = load_successes(state_dir)
     failures = load_failures(state_dir)
     if not can_process(link, state_dir, successes, failures):
@@ -37,7 +32,6 @@ def process_manual_retry(link, sender, state_dir=STATE_DIR):
 
     status = sender(link)
     if status == "fatal":
-        pause_automation(state_dir, "fatal account/login failure")
         log("⏹️ توقف: تحقق من بيانات الدخول أو الرصيد.")
         return 1
     _, result = record_result(link, status, state_dir, successes, failures)
@@ -51,9 +45,6 @@ def process_manual_retry(link, sender, state_dir=STATE_DIR):
 
 
 def main():
-    if is_automation_paused(STATE_DIR):
-        log("⏸️ الجدولة متوقفة مؤقتًا؛ لن تتم إعادة المحاولة حتى إزالة علامة الإيقاف يدويًا.")
-        return 1
     link = os.environ.get("TARGET_LINK", "").strip()
     if not LINK_PATTERN.fullmatch(link):
         log("❌ الرابط غير صالح؛ يلزم رابط منشور من قناة aljnoubvoice.")
@@ -71,7 +62,7 @@ def main():
     try:
         account_number, username, password = select_rotating_account(os.environ, STATE_DIR)
     except (OSError, ValueError) as error:
-        log(f"❌ تعذر اختيار حساب؛ تحقق من الأسرار التسعة وحالة account_rotation.json: {error}")
+        log(f"❌ تعذر اختيار حساب؛ تحقق من الأسرار الثلاثة وحالة account_rotation.json: {error}")
         return 1
 
     log(f"🚀 إعادة تشغيل يدوية للرابط المحدد: {link} | الحساب رقم {account_number}")
