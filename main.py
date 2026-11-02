@@ -113,7 +113,7 @@ def pending_links(attempts, successes=None, state_dir=STATE_DIR, priority_links=
     priority = list(dict.fromkeys(reversed(priority_links or [])))
     priority_set = set(priority)
     ordered_links = [link for link in priority if link in queued]
-    ordered_links.extend(link for link in links if link not in priority_set)
+    ordered_links.extend(link for link in reversed(links) if link not in priority_set)
     result = []
     for link in ordered_links:
         if not can_process(link, state_dir, successes, attempts):
