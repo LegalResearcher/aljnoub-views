@@ -108,7 +108,8 @@ def pull_once():
 def pending_links(attempts, successes=None, state_dir=STATE_DIR):
     successes = load_successes(state_dir) if successes is None else successes
     result = []
-    for link in read_lines(os.path.join(state_dir, "telegram_links.txt")):
+    # الروابط الجديدة تُضاف إلى نهاية الطابور؛ عكس القراءة يجعلها تُعالج أولاً.
+    for link in reversed(read_lines(os.path.join(state_dir, "telegram_links.txt"))):
         if not can_process(link, state_dir, successes, attempts):
             continue
         if link not in result:
